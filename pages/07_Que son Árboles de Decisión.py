@@ -18,12 +18,15 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# --- Inicialización del cliente OpenAI ---
+# --- Configuración de la API de OpenAI ---
 try:
-    client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-except AttributeError:
-    client = None
-    st.error("¡Advertencia! No se encontró la clave de API de OpenAI. Algunas funcionalidades (como la generación de datos curiosos) no estarán disponibles. Por favor, configura 'openai_api_key' en tu archivo .streamlit/secrets.toml")
+    openai_api_key = st.secrets["OPENAI_API_KEY"]
+except KeyError:
+    openai_api_key = None
+    st.error("Error: La clave de API de OpenAI no está configurada en `secrets.toml`.")
+    st.info("Para configurarla, crea un archivo `.streamlit/secrets.toml` en la raíz de tu proyecto y añade: `OPENAI_API_KEY = 'tu_clave_aqui'`")
+
+client = OpenAI(api_key=openai_api_key) if openai_api_key else None
 
 # --- Obtener la ruta base del proyecto ---
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
