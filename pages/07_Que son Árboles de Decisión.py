@@ -1,32 +1,37 @@
 import streamlit as st
 import pandas as pd
-from sklearn.tree import DecisionTreeClassifier, export_graphviz
-from io import StringIO
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import os
 import pydotplus
 import json
 from streamlit_lottie import st_lottie
-import openai
+from openai import OpenAI
 from gtts import gTTS
 import io
 import time
-import os
+from io import StringIO # Importación necesaria para export_graphviz
+from sklearn.tree import DecisionTreeClassifier, export_graphviz # Importaciones necesarias para el árbol de decisión
 
-# --- Configuración de la página ---
 st.set_page_config(
     page_title="Árboles de Decisión - Academia de Agentes IA",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# --- Configuración de la API de OpenAI ---
-try:
-    openai_api_key = st.secrets["OPENAI_API_KEY"]
-except KeyError:
-    openai_api_key = None
-    st.error("Error: La clave de API de OpenAI no está configurada en `secrets.toml`.")
-    st.info("Para configurarla, crea un archivo `.streamlit/secrets.toml` en la raíz de tu proyecto y añade: `OPENAI_API_KEY = 'tu_clave_aqui'`")
-
-client = OpenAI(api_key=openai_api_key) if openai_api_key else None
+# --- Configuración de la API de OpenAI (inicializada una vez por sesión en st.session_state) ---
+if "openai_client" not in st.session_state:
+    try:
+        # Intenta obtener la clave secreta
+        api_key = st.secrets["OPENAI_API_KEY"]
+        # Inicializa el cliente de OpenAI y lo guarda en session_state
+        st.session_state.openai_client = OpenAI(api_key=api_key) # <--- ¡Aquí el cambio! Quitar 'openai.'
+    except KeyError:
+        # Si la clave no se encuentra, establece el cliente en None y muestra un mensaje de error
+        st.session_state.openai_client = None
+        st.error("¡Advertencia! La clave de API de OpenAI no está configurada. Algunas funcionalidades (como los chatbots) no estarán disponibles.")
+        st.info("Por favor, configura 'OPENAI_API_KEY' en la sección 'Secrets' de tu aplicación en Streamlit Cloud.")
 
 # --- Obtener la ruta base del proyecto ---
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -195,10 +200,7 @@ st.markdown("""
 """)
 
 # --- la animación Lottie principal ---
-# Esta sección carga y muestra la animación Lottie del árbol.json
-# Usamos LOTTIE_ARBOL_RELATIVE_PATH que será 'assets/lottie_animations/arbol.json'
-# La función load_lottiefile se encargará de construir la ruta absoluta internamente.
-lottie_arbol = load_lottiefile(LOTTIE_ARBOL_RELATIVE_PATH) # <--- CAMBIO IMPORTANTE AQUÍ
+lottie_arbol = load_lottiefile(LOTTIE_ARBOL_RELATIVE_PATH)
 
 if lottie_arbol:
     st_lottie(
@@ -246,24 +248,24 @@ elif st.session_state.game_state == "playing":
 
     if current_question:
         st.markdown(f"**Pregunta: {current_question['text']}**")
-        
+
         options = list(current_question["options"].keys())
-        
+
         # Usamos st.radio para que el niño elija una opción
         selected_option = st.radio("Elige tu respuesta:", options, key=st.session_state.current_question_id)
-        
+
         if st.button("➡️ ¡Siguiente!", key=f"next_q_{st.session_state.current_question_id}"):
             st.session_state.animal_path.append(selected_option) # Guardar la respuesta
-            
+
             next_step = current_question["options"][selected_option]
-            
+
             if "next_question" in next_step:
                 st.session_state.current_question_id = next_step["next_question"]
             elif "result" in next_step:
                 st.session_state.game_state = "result"
                 st.session_state.adivinado_animal_info = next_step
             st.rerun() # Recargar para mostrar la siguiente pregunta o el resultado
-            
+
     else:
         st.error("¡Ups! Parece que algo salió mal con las preguntas. ¡Reinicia el juego!")
         if st.button("Reiniciar Juego", key="error_reset_game"):
@@ -278,20 +280,20 @@ elif st.session_state.game_state == "result":
 
         # Mostrar imagen del animal
         # Construimos la ruta absoluta para la imagen
-        image_absolute_path = os.path.join(PROJECT_ROOT, GAME_IMAGES_RELATIVE_PATH, animal_info['image']) # <--- CAMBIO IMPORTANTE AQUÍ
-        
+        image_absolute_path = os.path.join(PROJECT_ROOT, GAME_IMAGES_RELATIVE_PATH, animal_info['image'])
+
         if os.path.exists(image_absolute_path):
             st.image(image_absolute_path, caption=animal_info['result'], use_container_width=False, width=300) # Ajusta el ancho
         else:
             st.warning(f"Imagen '{animal_info['image']}' no encontrada en la ruta: '{image_absolute_path}'.") # Mensaje más útil
 
         # Opcional: Generar dato curioso con OpenAI y reproducirlo
-        if client and openai.api_key: # Asegurarse de que el cliente y la clave estén disponibles
+        if st.session_state.openai_client: # Asegurarse de que el cliente esté disponible
             st.markdown("---")
             st.subheader("¡Dato curioso de tu animal!")
             try:
                 with st.spinner("Generando dato curioso..."):
-                    response = client.chat.completions.create(
+                    response = st.session_state.openai_client.chat.completions.create(
                         model="gpt-3.5-turbo", # Puedes probar con "gpt-4" si tienes acceso y quieres más calidad
                         messages=[
                             {"role": "system", "content": "Actúa como un experto en animales muy amigable para niños."},
@@ -326,123 +328,6 @@ elif st.session_state.game_state == "result":
 st.write("---")
 
 
-
-
-st.subheader("Un ejemplo real de cómo funciona un Árbol de Decisión (¡para futuros científicos de datos!)")
-st.markdown("""
-Ahora que hemos jugado, te mostraremos cómo los científicos usan los árboles de decisión para hacer predicciones.
-Vamos a usar un ejemplo donde queremos saber **"¿Qué tipo de mascota es?"** basándonos en sus características.
-""")
-
-st.markdown("### Nuestros datos de ejemplo:")
-
-pet_data_current_behavior = {
-    'Tiene_Pelo': [
-        'Sí', 'Sí', 'Sí', 'Sí', 'Sí', 'Sí', 'Sí', 'Sí', 'Sí', 'Sí',  # 10 con pelo
-        'No', 'No', 'No', 'No', 'No',                             # 5 sin pelo (Pájaros)
-        'Sí', 'Sí', 'Sí', 'Sí', 'Sí', 'Sí', 'Sí', 'Sí', 'Sí', 'Sí', # Otros 10 con pelo
-        'No', 'No', 'No', 'No', 'No'                              # Otros 5 sin pelo (Pájaros)
-    ],
-    'Tamaño_Pequeño': [
-        'No', 'Sí', 'No', 'Sí', 'No', 'Sí', 'No', 'Sí', 'No', 'Sí', # Variedad para con pelo
-        'Sí', 'No', 'Sí', 'No', 'Sí',                             # Variedad para sin pelo
-        'No', 'Sí', 'No', 'Sí', 'No', 'Sí', 'No', 'Sí', 'No', 'Sí',
-        'Sí', 'No', 'Sí', 'No', 'Sí'
-    ],
-    'Hace_Sonido': [
-        'Guau', 'Miau', 'Guau', 'Miau', 'Guau', 'Miau', 'Guau', 'Miau', 'Guau', 'Miau', # Mezcla de sonidos para con pelo
-        'Pío', 'Pío', 'Pío', 'Pío', 'Pío',                                            # Solo "Pío" para sin pelo (garantiza pureza de pájaro)
-        'Guau', 'Miau', 'Guau', 'Miau', 'Guau', 'Miau', 'Guau', 'Miau', 'Guau', 'Miau',
-        'Pío', 'Pío', 'Pío', 'Pío', 'Pío'
-    ],
-    'Mascota': [
-        'Perro', 'Gato', 'Perro', 'Gato', 'Perro', 'Gato', 'Perro', 'Gato', 'Perro', 'Gato', # Perros y Gatos (con pelo)
-        'Pájaro', 'Pájaro', 'Pájaro', 'Pájaro', 'Pájaro',                                # Solo Pájaros (sin pelo, grupo puro)
-        'Perro', 'Gato', 'Perro', 'Gato', 'Perro', 'Gato', 'Perro', 'Gato', 'Perro', 'Gato',
-        'Pájaro', 'Pájaro', 'Pájaro', 'Pájaro', 'Pájaro'
-    ]
-}
-df_pet = pd.DataFrame(pet_data_current_behavior)
-st.dataframe(df_pet)
-
-st.markdown("""
-Para que el ordenador entienda estos datos y pueda "dibujar" el árbol, necesita convertirlos a números. ¡Es como traducir un idioma! Cada característica (como 'Tiene Pelo' o 'Guau') se convierte en un número.
-""")
-
-df_pet_encoded = df_pet.copy()
-
-# Mapeos explícitos para mayor claridad en la visualización y consistencia con class_names
-pelo_mapping = {'No': 0, 'Sí': 1}
-tamano_mapping = {'No': 0, 'Sí': 1}
-sonido_mapping = {'Miau': 0, 'Guau': 1, 'Pío': 2}
-mascota_output_mapping = {'Gato': 0, 'Perro': 1, 'Pájaro': 2}
-
-df_pet_encoded['Tiene_Pelo'] = df_pet_encoded['Tiene_Pelo'].map(pelo_mapping)
-df_pet_encoded['Tamaño_Pequeño'] = df_pet_encoded['Tamaño_Pequeño'].map(tamano_mapping)
-df_pet_encoded['Hace_Sonido'] = df_pet_encoded['Hace_Sonido'].map(sonido_mapping)
-df_pet_encoded['Mascota'] = df_pet_encoded['Mascota'].map(mascota_output_mapping)
-
-st.dataframe(df_pet_encoded)
-
-# Separar características (X) y objetivo (y)
-X_pet = df_pet_encoded[['Tiene_Pelo', 'Tamaño_Pequeño', 'Hace_Sonido']]
-y_pet = df_pet_encoded['Mascota']
-
-# Entrenar el Árbol de Decisión
-model_pet = DecisionTreeClassifier(criterion='entropy', random_state=42)
-model_pet.fit(X_pet, y_pet)
-
-try:
-    # Visualizar el árbol
-    dot_data_pet = StringIO()
-    export_graphviz(model_pet, out_file=dot_data_pet,
-                    feature_names=X_pet.columns,
-                    class_names=['Gato', 'Perro', 'Pájaro'],
-                    filled=True, rounded=True,
-                    special_characters=True)
-
-    graph_pet = pydotplus.graph_from_dot_data(dot_data_pet.getvalue())
-    tree_image_path_pet = 'decision_tree_pet.png'
-    graph_pet.write_png(tree_image_path_pet)
-
-    st.image(tree_image_path_pet, caption='Nuestro Árbol de Decisión para "Adivinar la Mascota"', use_container_width=True)
-
-    # --- EXPLICACIÓN DEL GRÁFICO ---
-    st.markdown("---")
-    st.subheader("¡Entendiendo el Árbol de Decisión para adivinar mascotas!")
-    st.markdown("""
-    Mira el gráfico del árbol que aparece arriba. ¡Es un mapa para adivinar qué mascota es!
-
-    **Cada caja (o "nodo") es una pregunta.** Las preguntas te guían por el árbol hasta que llegas a una respuesta final.
-
-    **Vamos a ver cómo funciona, paso a paso, como si estuviéramos buscando una mascota:**
-
-    1.  **Empezamos arriba, en la primera caja (el "nodo raíz").** Aquí se hace la pregunta más importante para diferenciar a los animales. En nuestro árbol, la primera pregunta es: **`Hace_Sonido <= 0.5`**
-        * ¿Recuerdas que tradujimos 'Miau' a 0, 'Guau' a 1 y 'Pío' a 2 para 'Hace_Sonido'? Esta pregunta se traduce a: **"¿El animal hace 'Miau'?"** (es decir, el valor para 'Hace_Sonido' es 0, que es menor o igual a 0.5).
-        * Si la respuesta es **SÍ** (el animal hace 'Miau'), seguimos la flecha `True` (hacia la izquierda).
-            * Este camino lleva a una **hoja final** donde la `class` es **Gato**. ¡Así que si hace 'Miau', es un Gato!
-        * Si la respuesta es **NO** (el animal hace 'Guau' o 'Pío'), seguimos la flecha `False` (hacia la derecha).
-
-    3.  **Si fuimos por la derecha (el animal NO hace 'Miau', es decir, hace 'Guau' o 'Pío'):** Llegamos a otra nueva caja. Esta caja nos pregunta sobre el **"Tiene_Pelo"**.
-        * La pregunta es `Tiene_Pelo <= 0.5`. ¿Recuerdas que 'No' es 0 y 'Sí' es 1 para 'Tiene_Pelo'? Esta pregunta se traduce a: **"¿El animal NO tiene pelo?"** (es decir, el valor para 'Tiene_Pelo' es 0, que es menor o igual a 0.5).
-        * Si la respuesta es **SÍ** (el animal NO tiene pelo), seguimos la flecha `True` (hacia la izquierda).
-            * Este camino lleva a una **hoja final** donde la `class` es **Pájaro**. ¡Si no hace 'Miau' y no tiene pelo, es un Pájaro!
-        * Si la respuesta es **NO** (el animal SÍ tiene pelo), seguimos la flecha `False` (hacia la derecha).
-            * Este camino lleva a una **hoja final** donde la `class` es **Perro**. ¡Si no hace 'Miau' pero sí tiene pelo, es un Perro!
-
-    **Las "hojas" (las cajas al final de las ramas que no se dividen más) son las respuestas finales.** La `class` que ves en cada hoja te dice qué tipo de mascota predice el árbol.
-
-    **En resumen:** Este árbol usa preguntas sobre el sonido y el pelo para ayudarnos a adivinar qué tipo de mascota es, ¡empezando por el sonido!
-    """)
-
-except Exception as e:
-    st.warning(f"No se pudo generar la imagen del Árbol de Decisión. Asegúrate de tener Graphviz instalado y configurado correctamente. Error: {e}")
-    st.markdown("Puedes aprender más sobre la visualización de árboles de decisión en la documentación de scikit-learn o pydotplus.")
-
-
-st.markdown("""
-Esperamos que este ejemplo te haya ayudado a entender un poco mejor cómo funcionan los Árboles de Decisión. ¡Son como un mapa que te guía hacia la mejor decisión!
-""")
 
 
 # --- Sección de Chatbot de Juego con Arbolín ---
@@ -584,7 +469,7 @@ with col_game_buttons_arbolin_tree:
         st.session_state.tree_correct_streak = 0
         st.session_state.last_played_question_arbolin_tree = None
         st.rerun()
-        
+
 with col_level_up_buttons_arbolin_tree:
     st.markdown("<p style='font-size: 1.1em; font-weight: bold;'>¿Ya eres un experto en decisiones? ¡Salta de nivel! 👇</p>", unsafe_allow_html=True)
     col_lvl1_arbolin_tree, col_lvl2_arbolin_tree, col_lvl3_arbolin_tree = st.columns(3) # Tres columnas para los botones de nivel
@@ -609,13 +494,11 @@ if st.session_state.tree_game_active:
     if st.session_state.tree_current_question is None and st.session_state.tree_game_needs_new_question and not st.session_state.tree_awaiting_next_game_decision:
         with st.spinner("Arbolín está preparando una pregunta sobre árboles de decisión..."):
             try:
-                # Ensure 'client' is defined if you uncomment this block
-                if 'client' not in st.session_state or st.session_state.client is None:
-                    st.error("Error: OpenAI client not initialized. Please ensure your API key is set.")
+                # Usa st.session_state.openai_client
+                if st.session_state.openai_client is None:
+                    st.error("Error: El cliente de OpenAI no está inicializado. Asegúrate de que tu clave de API esté configurada.")
                     st.session_state.tree_game_active = False
                     st.rerun()
-                    
-                client = st.session_state.client # Assuming client is stored in session_state for access
 
                 game_messages_for_api = [{"role": "system", "content": arbolin_tree_game_system_prompt}]
                 if st.session_state.tree_game_messages:
@@ -627,7 +510,7 @@ if st.session_state.tree_game_active:
 
                 game_messages_for_api.append({"role": "user", "content": "Genera una **nueva pregunta** sobre QUÉ SON LOS ÁRBOLES DE DECISIÓN siguiendo el formato exacto. ¡Recuerda, la pregunta debe ser muy VARIADA y CREATIVA, y no se debe parecer a las anteriores!"})
 
-                game_response = client.chat.completions.create(
+                game_response = st.session_state.openai_client.chat.completions.create( # Referencia directa a st.session_state.openai_client
                     model="gpt-4o-mini",
                     messages=game_messages_for_api,
                     temperature=0.8,
@@ -705,14 +588,14 @@ if st.session_state.tree_game_active:
             if st.session_state.tree_correct_streak > 0 and \
                st.session_state.tree_correct_streak % 3 == 0 and \
                st.session_state.tree_correct_streak > prev_streak:
-                
+
                 if st.session_state.tree_correct_streak < 9: # Niveles Básico, Medio, Avanzado
                     current_level_text = ""
                     if st.session_state.tree_correct_streak == 3:
                         current_level_text = "Medio (como un adolescente que ya entiende de lógica de decisiones)"
                     elif st.session_state.tree_correct_streak == 6:
                         current_level_text = "Avanzado (como un Data Scientist junior)"
-                    
+
                     level_up_message = f"🎉 ¡Increíble! ¡Has respondido {st.session_state.tree_correct_streak} preguntas seguidas correctamente! ¡Felicidades! Has subido al **Nivel {current_level_text}** de Árboles de Decisión. ¡Las preguntas serán un poco más desafiantes ahora! ¡Eres un/a verdadero/a explorador/a de decisiones! 🚀"
                     st.session_state.tree_game_messages.append({"role": "assistant", "content": level_up_message})
                     st.balloons()
@@ -727,7 +610,7 @@ if st.session_state.tree_game_active:
                     except Exception as e:
                         st.warning(f"No se pudo reproducir el audio de subida de nivel: {e}")
                 elif st.session_state.tree_correct_streak >= 9:
-                    medals_earned = (st.session_state.tree_correct_streak - 6) // 3 
+                    medals_earned = (st.session_state.tree_correct_streak - 6) // 3
                     medal_message = f"🏅 ¡FELICITACIONES, MAESTRO DE DECISIONES! ¡Has ganado tu {medals_earned}ª Medalla del Árbol! ¡Tu habilidad para seguir los caminos correctos es asombrosa y digna de un verdadero EXPERTO en Árboles de Decisión! ¡Sigue así! 🌟"
                     st.session_state.tree_game_messages.append({"role": "assistant", "content": medal_message})
                     st.balloons()
@@ -741,14 +624,14 @@ if st.session_state.tree_game_active:
                         time.sleep(3)
                     except Exception as e:
                         st.warning(f"No se pudo reproducir el audio de medalla: {e}")
-                    
+
                     if prev_streak < 9:
                         level_up_message_champion = f"¡Has desbloqueado el **Nivel Campeón (Maestro de Decisiones)**! ¡Las preguntas ahora son solo para los verdaderos genios y futuros científicos de datos que entienden los secretos de las decisiones algorítmicas! ¡Adelante!"
                         st.session_state.tree_game_messages.append({"role": "assistant", "content": level_up_message_champion})
                         try:
                             tts_level_up_champion = gTTS(text=level_up_message_champion, lang='es', slow=False)
                             audio_fp_level_up_champion = io.BytesIO()
-                            tts_level_up_champion.write_to_fp(audio_fp_level_up_champion) 
+                            tts_level_up_champion.write_to_fp(audio_fp_level_up_champion)
                             audio_fp_level_up_champion.seek(0)
                             st.audio(audio_fp_level_up_champion, format="audio/mp3", start_time=0, autoplay=True)
                             time.sleep(2)
@@ -759,13 +642,11 @@ if st.session_state.tree_game_active:
             # Generar feedback de Arbolín
             with st.spinner("Arbolín está revisando tu respuesta..."):
                 try:
-                    # Ensure 'client' is defined if you uncomment this block
-                    if 'client' not in st.session_state or st.session_state.client is None:
-                        st.error("Error: OpenAI client not initialized. Cannot generate feedback.")
+                    # Usa st.session_state.openai_client
+                    if st.session_state.openai_client is None:
+                        st.error("Error: El cliente de OpenAI no está inicializado. No se puede generar feedback.")
                         st.session_state.tree_game_active = False
                         st.rerun()
-                        
-                    client = st.session_state.client # Assuming client is stored in session_state
 
                     feedback_prompt = f"""
                     El usuario respondió '{user_choice}'. La pregunta era: '{st.session_state.tree_current_question}'.
@@ -777,7 +658,7 @@ if st.session_state.tree_game_active:
                     Finalmente, pregunta: "¿Quieres seguir explorando el bosque de decisiones?".
                     **Sigue el formato estricto de feedback que tienes en tus instrucciones de sistema.**
                     """
-                    feedback_response = client.chat.completions.create(
+                    feedback_response = st.session_state.openai_client.chat.completions.create( # Referencia directa a st.session_state.openai_client
                         model="gpt-4o-mini",
                         messages=[
                             {"role": "system", "content": arbolin_tree_game_system_prompt},
@@ -834,6 +715,124 @@ if st.session_state.tree_game_active:
                 st.session_state.tree_game_messages.append({"role": "assistant", "content": "¡De acuerdo! ¡Gracias por explorar el bosque de decisiones conmigo! Espero que hayas aprendido mucho. ¡Hasta la próxima decisión!"})
                 st.rerun()
 
-else: 
-    if 'client' not in st.session_state or st.session_state.client is None: # Changed condition to check st.session_state.client
+else:
+    # Usa st.session_state.openai_client
+    if st.session_state.openai_client is None:
         st.info("Para usar la sección de preguntas de Arbolín, necesitas configurar tu clave de API de OpenAI en `secrets.toml`.")
+
+
+st.subheader("Un ejemplo real de cómo funciona un Árbol de Decisión (¡para futuros científicos de datos!)")
+st.markdown("""
+Ahora que hemos jugado, te mostraremos cómo los científicos usan los árboles de decisión para hacer predicciones.
+Vamos a usar un ejemplo donde queremos saber **"¿Qué tipo de mascota es?"** basándonos en sus características.
+""")
+
+st.markdown("### Nuestros datos de ejemplo:")
+
+pet_data_current_behavior = {
+    'Tiene_Pelo': [
+        'Sí', 'Sí', 'Sí', 'Sí', 'Sí', 'Sí', 'Sí', 'Sí', 'Sí', 'Sí',  # 10 con pelo
+        'No', 'No', 'No', 'No', 'No',                              # 5 sin pelo (Pájaros)
+        'Sí', 'Sí', 'Sí', 'Sí', 'Sí', 'Sí', 'Sí', 'Sí', 'Sí', 'Sí', # Otros 10 con pelo
+        'No', 'No', 'No', 'No', 'No'                               # Otros 5 sin pelo (Pájaros)
+    ],
+    'Tamaño_Pequeño': [
+        'No', 'Sí', 'No', 'Sí', 'No', 'Sí', 'No', 'Sí', 'No', 'Sí', # Variedad para con pelo
+        'Sí', 'No', 'Sí', 'No', 'Sí',                               # Variedad para sin pelo
+        'No', 'Sí', 'No', 'Sí', 'No', 'Sí', 'No', 'Sí', 'No', 'Sí',
+        'Sí', 'No', 'Sí', 'No', 'Sí'
+    ],
+    'Hace_Sonido': [
+        'Guau', 'Miau', 'Guau', 'Miau', 'Guau', 'Miau', 'Guau', 'Miau', 'Guau', 'Miau', # Mezcla de sonidos para con pelo
+        'Pío', 'Pío', 'Pío', 'Pío', 'Pío',                                            # Solo "Pío" para sin pelo (garantiza pureza de pájaro)
+        'Guau', 'Miau', 'Guau', 'Miau', 'Guau', 'Miau', 'Guau', 'Miau', 'Guau', 'Miau',
+        'Pío', 'Pío', 'Pío', 'Pío', 'Pío'
+    ],
+    'Mascota': [
+        'Perro', 'Gato', 'Perro', 'Gato', 'Perro', 'Gato', 'Perro', 'Gato', 'Perro', 'Gato', # Perros y Gatos (con pelo)
+        'Pájaro', 'Pájaro', 'Pájaro', 'Pájaro', 'Pájaro',                                            # Solo Pájaros (sin pelo, grupo puro)
+        'Perro', 'Gato', 'Perro', 'Gato', 'Perro', 'Gato', 'Perro', 'Gato', 'Perro', 'Gato',
+        'Pájaro', 'Pájaro', 'Pájaro', 'Pájaro', 'Pájaro'
+    ]
+}
+df_pet = pd.DataFrame(pet_data_current_behavior)
+st.dataframe(df_pet)
+
+st.markdown("""
+Para que el ordenador entienda estos datos y pueda "dibujar" el árbol, necesita convertirlos a números. ¡Es como traducir un idioma! Cada característica (como 'Tiene Pelo' o 'Guau') se convierte en un número.
+""")
+
+df_pet_encoded = df_pet.copy()
+
+# Mapeos explícitos para mayor claridad en la visualización y consistencia con class_names
+pelo_mapping = {'No': 0, 'Sí': 1}
+tamano_mapping = {'No': 0, 'Sí': 1}
+sonido_mapping = {'Miau': 0, 'Guau': 1, 'Pío': 2}
+mascota_output_mapping = {'Gato': 0, 'Perro': 1, 'Pájaro': 2}
+
+df_pet_encoded['Tiene_Pelo'] = df_pet_encoded['Tiene_Pelo'].map(pelo_mapping)
+df_pet_encoded['Tamaño_Pequeño'] = df_pet_encoded['Tamaño_Pequeño'].map(tamano_mapping)
+df_pet_encoded['Hace_Sonido'] = df_pet_encoded['Hace_Sonido'].map(sonido_mapping)
+df_pet_encoded['Mascota'] = df_pet_encoded['Mascota'].map(mascota_output_mapping)
+
+st.dataframe(df_pet_encoded)
+
+# Separar características (X) y objetivo (y)
+X_pet = df_pet_encoded[['Tiene_Pelo', 'Tamaño_Pequeño', 'Hace_Sonido']]
+y_pet = df_pet_encoded['Mascota']
+
+# Entrenar el Árbol de Decisión
+model_pet = DecisionTreeClassifier(criterion='entropy', random_state=42)
+model_pet.fit(X_pet, y_pet)
+
+try:
+    # Visualizar el árbol
+    dot_data_pet = StringIO()
+    export_graphviz(model_pet, out_file=dot_data_pet,
+                    feature_names=X_pet.columns,
+                    class_names=['Gato', 'Perro', 'Pájaro'],
+                    filled=True, rounded=True,
+                    special_characters=True)
+
+    graph_pet = pydotplus.graph_from_dot_data(dot_data_pet.getvalue())
+    tree_image_path_pet = 'decision_tree_pet.png' # Esto creará el PNG en el directorio de trabajo actual
+    graph_pet.write_png(tree_image_path_pet)
+
+    st.image(tree_image_path_pet, caption='Nuestro Árbol de Decisión para "Adivinar la Mascota"', use_container_width=True)
+
+    # --- EXPLICACIÓN DEL GRÁFICO ---
+    st.markdown("---")
+    st.subheader("¡Entendiendo el Árbol de Decisión para adivinar mascotas!")
+    st.markdown("""
+    Mira el gráfico del árbol que aparece arriba. ¡Es un mapa para adivinar qué mascota es!
+
+    **Cada caja (o "nodo") es una pregunta.** Las preguntas te guían por el árbol hasta que llegas a una respuesta final.
+
+    **Vamos a ver cómo funciona, paso a paso, como si estuviéramos buscando una mascota:**
+
+    1.  **Empezamos arriba, en la primera caja (el "nodo raíz").** Aquí se hace la pregunta más importante para diferenciar a los animales. En nuestro árbol, la primera pregunta es: **`Hace_Sonido <= 0.5`**
+        * ¿Recuerdas que tradujimos 'Miau' a 0, 'Guau' a 1 y 'Pío' a 2 para 'Hace_Sonido'? Esta pregunta se traduce a: **"¿El animal hace 'Miau'?"** (es decir, el valor para 'Hace_Sonido' es 0, que es menor o igual a 0.5).
+        * Si la respuesta es **SÍ** (el animal hace 'Miau'), seguimos la flecha `True` (hacia la izquierda).
+            * Este camino lleva a una **hoja final** donde la `class` es **Gato**. ¡Así que si hace 'Miau', es un Gato!
+        * Si la respuesta es **NO** (el animal hace 'Guau' o 'Pío'), seguimos la flecha `False` (hacia la derecha).
+
+    3.  **Si fuimos por la derecha (el animal NO hace 'Miau', es decir, hace 'Guau' o 'Pío'):** Llegamos a otra nueva caja. Esta caja nos pregunta sobre el **"Tiene_Pelo"**.
+        * La pregunta es `Tiene_Pelo <= 0.5`. ¿Recuerdas que 'No' es 0 y 'Sí' es 1 para 'Tiene_Pelo' ? Esta pregunta se traduce a: **"¿El animal NO tiene pelo?"** (es decir, el valor para 'Tiene_Pelo' es 0, que es menor o igual a 0.5).
+        * Si la respuesta es **SÍ** (el animal NO tiene pelo), seguimos la flecha `True` (hacia la izquierda).
+            * Este camino lleva a una **hoja final** donde la `class` es **Pájaro**. ¡Si no hace 'Miau' y no tiene pelo, es un Pájaro!
+        * Si la respuesta es **NO** (el animal SÍ tiene pelo), seguimos la flecha `False` (hacia la derecha).
+            * Este camino lleva a una **hoja final** donde la `class` es **Perro**. ¡Si no hace 'Miau' pero sí tiene pelo, es un Perro!
+
+    **Las "hojas" (las cajas al final de las ramas que no se dividen más) son las respuestas finales.** La `class` que ves en cada hoja te dice qué tipo de mascota predice el árbol.
+
+    **En resumen:** Este árbol usa preguntas sobre el sonido y el pelo para ayudarnos a adivinar qué tipo de mascota es, ¡empezando por el sonido!
+    """)
+
+except Exception as e:
+    st.warning(f"No se pudo generar la imagen del Árbol de Decisión. Asegúrate de tener Graphviz instalado y configurado correctamente. Error: {e}")
+    st.markdown("Puedes aprender más sobre la visualización de árboles de decisión en la documentación de scikit-learn o pydotplus.")
+
+
+st.markdown("""
+Esperamos que este ejemplo te haya ayudado a entender un poco mejor cómo funcionan los Árboles de Decisión. ¡Son como un mapa que te guía hacia la mejor decisión!
+""")
