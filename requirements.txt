@@ -11,3 +11,5 @@ pydotplus
 pydub
 yfinance
 tensorflow>=2.15.0,<2.20.0
+pillow
+streamlit-drawable-canvas
