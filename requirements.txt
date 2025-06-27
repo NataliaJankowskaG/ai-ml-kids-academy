@@ -10,6 +10,4 @@ seaborn
 pydotplus
 pydub
 yfinance
-tensorflow
-Pillow
-streamlit-drawable-canvas
+tensorflow>=2.15.0,<2.20.0
