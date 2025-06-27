@@ -39,8 +39,8 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- Ruta donde se espera encontrar el modelo guardado:
-MODEL_LOAD_PATH = "assets/models/deep_learning_model.h5"
+# --- Ruta donde se espera encontrar el modelo guardado ---
+MODEL_LOAD_PATH = os.path.join("assets", "models", "deep_learning_model.h5")
 
 # --- Funciones auxiliares para Deep Learning ---
 
