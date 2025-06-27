@@ -3,10 +3,13 @@
 
 [theme]
 # Colores primarios y de fondo
-primaryColor = "#FFC0CB"  # Rosa pastel ("Pink")
+primaryColor = "#FFC0CB"  # Rosa pastel ("Pink")
 backgroundColor = "#E0FFFF" # Azul cielo muy claro ("Light Cyan")
 secondaryBackgroundColor = "#FFFACD" # Amarillo cremoso ("Lemon Chiffon")
 textColor = "#6A5ACD" # Azul pizarra suave ("Slate Blue") para texto legible
 
 # Fuentes
 font = "sans serif" # "sans serif" es amigable y legible para niños
+
+[runner]
+python_version = "3.10"
