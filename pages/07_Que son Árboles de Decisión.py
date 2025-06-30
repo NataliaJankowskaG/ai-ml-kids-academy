@@ -318,7 +318,7 @@ elif st.session_state.game_state == "result":
 
         st.markdown("---")
         st.write("¿Quieres volver a jugar y adivinar otro animal?")
-        if st.button("🔄 ¡Jugar de Nuevo!", key="reset_game_button_result"):
+        if st.button("¡Jugar de Nuevo!", key="reset_game_button_result"):
             reset_game()
     else:
         st.error("No se pudo determinar el resultado. ¡Reinicia el juego!")
@@ -328,6 +328,121 @@ elif st.session_state.game_state == "result":
 st.write("---")
 
 
+st.subheader("Un ejemplo real de cómo funciona un Árbol de Decisión (¡para futuros científicos de datos!)")
+st.markdown("""
+Ahora que hemos jugado, te mostraremos cómo los científicos usan los árboles de decisión para hacer predicciones.
+Vamos a usar un ejemplo donde queremos saber **"¿Qué tipo de mascota es?"** basándonos en sus características.
+""")
+
+st.markdown("### Nuestros datos de ejemplo:")
+
+pet_data_current_behavior = {
+    'Tiene_Pelo': [
+        'Sí', 'Sí', 'Sí', 'Sí', 'Sí', 'Sí', 'Sí', 'Sí', 'Sí', 'Sí',  # 10 con pelo
+        'No', 'No', 'No', 'No', 'No',                              # 5 sin pelo (Pájaros)
+        'Sí', 'Sí', 'Sí', 'Sí', 'Sí', 'Sí', 'Sí', 'Sí', 'Sí', 'Sí', # Otros 10 con pelo
+        'No', 'No', 'No', 'No', 'No'                               # Otros 5 sin pelo (Pájaros)
+    ],
+    'Tamaño_Pequeño': [
+        'No', 'Sí', 'No', 'Sí', 'No', 'Sí', 'No', 'Sí', 'No', 'Sí', # Variedad para con pelo
+        'Sí', 'No', 'Sí', 'No', 'Sí',                               # Variedad para sin pelo
+        'No', 'Sí', 'No', 'Sí', 'No', 'Sí', 'No', 'Sí', 'No', 'Sí',
+        'Sí', 'No', 'Sí', 'No', 'Sí'
+    ],
+    'Hace_Sonido': [
+        'Guau', 'Miau', 'Guau', 'Miau', 'Guau', 'Miau', 'Guau', 'Miau', 'Guau', 'Miau', # Mezcla de sonidos para con pelo
+        'Pío', 'Pío', 'Pío', 'Pío', 'Pío',                                            # Solo "Pío" para sin pelo (garantiza pureza de pájaro)
+        'Guau', 'Miau', 'Guau', 'Miau', 'Guau', 'Miau', 'Guau', 'Miau', 'Guau', 'Miau',
+        'Pío', 'Pío', 'Pío', 'Pío', 'Pío'
+    ],
+    'Mascota': [
+        'Perro', 'Gato', 'Perro', 'Gato', 'Perro', 'Gato', 'Perro', 'Gato', 'Perro', 'Gato', # Perros y Gatos (con pelo)
+        'Pájaro', 'Pájaro', 'Pájaro', 'Pájaro', 'Pájaro',                                            # Solo Pájaros (sin pelo, grupo puro)
+        'Perro', 'Gato', 'Perro', 'Gato', 'Perro', 'Gato', 'Perro', 'Gato', 'Perro', 'Gato',
+        'Pájaro', 'Pájaro', 'Pájaro', 'Pájaro', 'Pájaro'
+    ]
+}
+df_pet = pd.DataFrame(pet_data_current_behavior)
+st.dataframe(df_pet)
+
+st.markdown("""
+Para que el ordenador entienda estos datos y pueda "dibujar" el árbol, necesita convertirlos a números. ¡Es como traducir un idioma! Cada característica (como 'Tiene Pelo' o 'Guau') se convierte en un número.
+""")
+
+df_pet_encoded = df_pet.copy()
+
+# Mapeos explícitos para mayor claridad en la visualización y consistencia con class_names
+pelo_mapping = {'No': 0, 'Sí': 1}
+tamano_mapping = {'No': 0, 'Sí': 1}
+sonido_mapping = {'Miau': 0, 'Guau': 1, 'Pío': 2}
+mascota_output_mapping = {'Gato': 0, 'Perro': 1, 'Pájaro': 2}
+
+df_pet_encoded['Tiene_Pelo'] = df_pet_encoded['Tiene_Pelo'].map(pelo_mapping)
+df_pet_encoded['Tamaño_Pequeño'] = df_pet_encoded['Tamaño_Pequeño'].map(tamano_mapping)
+df_pet_encoded['Hace_Sonido'] = df_pet_encoded['Hace_Sonido'].map(sonido_mapping)
+df_pet_encoded['Mascota'] = df_pet_encoded['Mascota'].map(mascota_output_mapping)
+
+st.dataframe(df_pet_encoded)
+
+# Separar características (X) y objetivo (y)
+X_pet = df_pet_encoded[['Tiene_Pelo', 'Tamaño_Pequeño', 'Hace_Sonido']]
+y_pet = df_pet_encoded['Mascota']
+
+# Entrenar el Árbol de Decisión
+model_pet = DecisionTreeClassifier(criterion='entropy', random_state=42)
+model_pet.fit(X_pet, y_pet)
+
+try:
+    # Visualizar el árbol
+    dot_data_pet = StringIO()
+    export_graphviz(model_pet, out_file=dot_data_pet,
+                    feature_names=X_pet.columns,
+                    class_names=['Gato', 'Perro', 'Pájaro'],
+                    filled=True, rounded=True,
+                    special_characters=True)
+
+    graph_pet = pydotplus.graph_from_dot_data(dot_data_pet.getvalue())
+    tree_image_path_pet = 'decision_tree_pet.png' # Esto creará el PNG en el directorio de trabajo actual
+    graph_pet.write_png(tree_image_path_pet)
+
+    st.image(tree_image_path_pet, caption='Nuestro Árbol de Decisión para "Adivinar la Mascota"', use_container_width=True)
+
+    # --- EXPLICACIÓN DEL GRÁFICO ---
+    st.markdown("---")
+    st.subheader("¡Entendiendo el Árbol de Decisión para adivinar mascotas!")
+    st.markdown("""
+    Mira el gráfico del árbol que aparece arriba. ¡Es un mapa para adivinar qué mascota es!
+
+    **Cada caja (o "nodo") es una pregunta.** Las preguntas te guían por el árbol hasta que llegas a una respuesta final.
+
+    **Vamos a ver cómo funciona, paso a paso, como si estuviéramos buscando una mascota:**
+
+    1.  **Empezamos arriba, en la primera caja (el "nodo raíz").** Aquí se hace la pregunta más importante para diferenciar a los animales. En nuestro árbol, la primera pregunta es: **`Hace_Sonido <= 0.5`**
+        * ¿Recuerdas que tradujimos 'Miau' a 0, 'Guau' a 1 y 'Pío' a 2 para 'Hace_Sonido'? Esta pregunta se traduce a: **"¿El animal hace 'Miau'?"** (es decir, el valor para 'Hace_Sonido' es 0, que es menor o igual a 0.5).
+        * Si la respuesta es **SÍ** (el animal hace 'Miau'), seguimos la flecha `True` (hacia la izquierda).
+            * Este camino lleva a una **hoja final** donde la `class` es **Gato**. ¡Así que si hace 'Miau', es un Gato!
+        * Si la respuesta es **NO** (el animal hace 'Guau' o 'Pío'), seguimos la flecha `False` (hacia la derecha).
+
+    3.  **Si fuimos por la derecha (el animal NO hace 'Miau', es decir, hace 'Guau' o 'Pío'):** Llegamos a otra nueva caja. Esta caja nos pregunta sobre el **"Tiene_Pelo"**.
+        * La pregunta es `Tiene_Pelo <= 0.5`. ¿Recuerdas que 'No' es 0 y 'Sí' es 1 para 'Tiene_Pelo' ? Esta pregunta se traduce a: **"¿El animal NO tiene pelo?"** (es decir, el valor para 'Tiene_Pelo' es 0, que es menor o igual a 0.5).
+        * Si la respuesta es **SÍ** (el animal NO tiene pelo), seguimos la flecha `True` (hacia la izquierda).
+            * Este camino lleva a una **hoja final** donde la `class` es **Pájaro**. ¡Si no hace 'Miau' y no tiene pelo, es un Pájaro!
+        * Si la respuesta es **NO** (el animal SÍ tiene pelo), seguimos la flecha `False` (hacia la derecha).
+            * Este camino lleva a una **hoja final** donde la `class` es **Perro**. ¡Si no hace 'Miau' pero sí tiene pelo, es un Perro!
+
+    **Las "hojas" (las cajas al final de las ramas que no se dividen más) son las respuestas finales.** La `class` que ves en cada hoja te dice qué tipo de mascota predice el árbol.
+
+    **En resumen:** Este árbol usa preguntas sobre el sonido y el pelo para ayudarnos a adivinar qué tipo de mascota es, ¡empezando por el sonido!
+    """)
+
+except Exception as e:
+    st.warning(f"No se pudo generar la imagen del Árbol de Decisión. Asegúrate de tener Graphviz instalado y configurado correctamente. Error: {e}")
+    st.markdown("Puedes aprender más sobre la visualización de árboles de decisión en la documentación de scikit-learn o pydotplus.")
+
+
+st.markdown("""
+Esperamos que este ejemplo te haya ayudado a entender un poco mejor cómo funcionan los Árboles de Decisión. ¡Son como un mapa que te guía hacia la mejor decisión!
+""")
 
 
 # --- Sección de Chatbot de Juego con Arbolín ---
@@ -720,119 +835,3 @@ else:
     if st.session_state.openai_client is None:
         st.info("Para usar la sección de preguntas de Arbolín, necesitas configurar tu clave de API de OpenAI en `secrets.toml`.")
 
-
-st.subheader("Un ejemplo real de cómo funciona un Árbol de Decisión (¡para futuros científicos de datos!)")
-st.markdown("""
-Ahora que hemos jugado, te mostraremos cómo los científicos usan los árboles de decisión para hacer predicciones.
-Vamos a usar un ejemplo donde queremos saber **"¿Qué tipo de mascota es?"** basándonos en sus características.
-""")
-
-st.markdown("### Nuestros datos de ejemplo:")
-
-pet_data_current_behavior = {
-    'Tiene_Pelo': [
-        'Sí', 'Sí', 'Sí', 'Sí', 'Sí', 'Sí', 'Sí', 'Sí', 'Sí', 'Sí',  # 10 con pelo
-        'No', 'No', 'No', 'No', 'No',                              # 5 sin pelo (Pájaros)
-        'Sí', 'Sí', 'Sí', 'Sí', 'Sí', 'Sí', 'Sí', 'Sí', 'Sí', 'Sí', # Otros 10 con pelo
-        'No', 'No', 'No', 'No', 'No'                               # Otros 5 sin pelo (Pájaros)
-    ],
-    'Tamaño_Pequeño': [
-        'No', 'Sí', 'No', 'Sí', 'No', 'Sí', 'No', 'Sí', 'No', 'Sí', # Variedad para con pelo
-        'Sí', 'No', 'Sí', 'No', 'Sí',                               # Variedad para sin pelo
-        'No', 'Sí', 'No', 'Sí', 'No', 'Sí', 'No', 'Sí', 'No', 'Sí',
-        'Sí', 'No', 'Sí', 'No', 'Sí'
-    ],
-    'Hace_Sonido': [
-        'Guau', 'Miau', 'Guau', 'Miau', 'Guau', 'Miau', 'Guau', 'Miau', 'Guau', 'Miau', # Mezcla de sonidos para con pelo
-        'Pío', 'Pío', 'Pío', 'Pío', 'Pío',                                            # Solo "Pío" para sin pelo (garantiza pureza de pájaro)
-        'Guau', 'Miau', 'Guau', 'Miau', 'Guau', 'Miau', 'Guau', 'Miau', 'Guau', 'Miau',
-        'Pío', 'Pío', 'Pío', 'Pío', 'Pío'
-    ],
-    'Mascota': [
-        'Perro', 'Gato', 'Perro', 'Gato', 'Perro', 'Gato', 'Perro', 'Gato', 'Perro', 'Gato', # Perros y Gatos (con pelo)
-        'Pájaro', 'Pájaro', 'Pájaro', 'Pájaro', 'Pájaro',                                            # Solo Pájaros (sin pelo, grupo puro)
-        'Perro', 'Gato', 'Perro', 'Gato', 'Perro', 'Gato', 'Perro', 'Gato', 'Perro', 'Gato',
-        'Pájaro', 'Pájaro', 'Pájaro', 'Pájaro', 'Pájaro'
-    ]
-}
-df_pet = pd.DataFrame(pet_data_current_behavior)
-st.dataframe(df_pet)
-
-st.markdown("""
-Para que el ordenador entienda estos datos y pueda "dibujar" el árbol, necesita convertirlos a números. ¡Es como traducir un idioma! Cada característica (como 'Tiene Pelo' o 'Guau') se convierte en un número.
-""")
-
-df_pet_encoded = df_pet.copy()
-
-# Mapeos explícitos para mayor claridad en la visualización y consistencia con class_names
-pelo_mapping = {'No': 0, 'Sí': 1}
-tamano_mapping = {'No': 0, 'Sí': 1}
-sonido_mapping = {'Miau': 0, 'Guau': 1, 'Pío': 2}
-mascota_output_mapping = {'Gato': 0, 'Perro': 1, 'Pájaro': 2}
-
-df_pet_encoded['Tiene_Pelo'] = df_pet_encoded['Tiene_Pelo'].map(pelo_mapping)
-df_pet_encoded['Tamaño_Pequeño'] = df_pet_encoded['Tamaño_Pequeño'].map(tamano_mapping)
-df_pet_encoded['Hace_Sonido'] = df_pet_encoded['Hace_Sonido'].map(sonido_mapping)
-df_pet_encoded['Mascota'] = df_pet_encoded['Mascota'].map(mascota_output_mapping)
-
-st.dataframe(df_pet_encoded)
-
-# Separar características (X) y objetivo (y)
-X_pet = df_pet_encoded[['Tiene_Pelo', 'Tamaño_Pequeño', 'Hace_Sonido']]
-y_pet = df_pet_encoded['Mascota']
-
-# Entrenar el Árbol de Decisión
-model_pet = DecisionTreeClassifier(criterion='entropy', random_state=42)
-model_pet.fit(X_pet, y_pet)
-
-try:
-    # Visualizar el árbol
-    dot_data_pet = StringIO()
-    export_graphviz(model_pet, out_file=dot_data_pet,
-                    feature_names=X_pet.columns,
-                    class_names=['Gato', 'Perro', 'Pájaro'],
-                    filled=True, rounded=True,
-                    special_characters=True)
-
-    graph_pet = pydotplus.graph_from_dot_data(dot_data_pet.getvalue())
-    tree_image_path_pet = 'decision_tree_pet.png' # Esto creará el PNG en el directorio de trabajo actual
-    graph_pet.write_png(tree_image_path_pet)
-
-    st.image(tree_image_path_pet, caption='Nuestro Árbol de Decisión para "Adivinar la Mascota"', use_container_width=True)
-
-    # --- EXPLICACIÓN DEL GRÁFICO ---
-    st.markdown("---")
-    st.subheader("¡Entendiendo el Árbol de Decisión para adivinar mascotas!")
-    st.markdown("""
-    Mira el gráfico del árbol que aparece arriba. ¡Es un mapa para adivinar qué mascota es!
-
-    **Cada caja (o "nodo") es una pregunta.** Las preguntas te guían por el árbol hasta que llegas a una respuesta final.
-
-    **Vamos a ver cómo funciona, paso a paso, como si estuviéramos buscando una mascota:**
-
-    1.  **Empezamos arriba, en la primera caja (el "nodo raíz").** Aquí se hace la pregunta más importante para diferenciar a los animales. En nuestro árbol, la primera pregunta es: **`Hace_Sonido <= 0.5`**
-        * ¿Recuerdas que tradujimos 'Miau' a 0, 'Guau' a 1 y 'Pío' a 2 para 'Hace_Sonido'? Esta pregunta se traduce a: **"¿El animal hace 'Miau'?"** (es decir, el valor para 'Hace_Sonido' es 0, que es menor o igual a 0.5).
-        * Si la respuesta es **SÍ** (el animal hace 'Miau'), seguimos la flecha `True` (hacia la izquierda).
-            * Este camino lleva a una **hoja final** donde la `class` es **Gato**. ¡Así que si hace 'Miau', es un Gato!
-        * Si la respuesta es **NO** (el animal hace 'Guau' o 'Pío'), seguimos la flecha `False` (hacia la derecha).
-
-    3.  **Si fuimos por la derecha (el animal NO hace 'Miau', es decir, hace 'Guau' o 'Pío'):** Llegamos a otra nueva caja. Esta caja nos pregunta sobre el **"Tiene_Pelo"**.
-        * La pregunta es `Tiene_Pelo <= 0.5`. ¿Recuerdas que 'No' es 0 y 'Sí' es 1 para 'Tiene_Pelo' ? Esta pregunta se traduce a: **"¿El animal NO tiene pelo?"** (es decir, el valor para 'Tiene_Pelo' es 0, que es menor o igual a 0.5).
-        * Si la respuesta es **SÍ** (el animal NO tiene pelo), seguimos la flecha `True` (hacia la izquierda).
-            * Este camino lleva a una **hoja final** donde la `class` es **Pájaro**. ¡Si no hace 'Miau' y no tiene pelo, es un Pájaro!
-        * Si la respuesta es **NO** (el animal SÍ tiene pelo), seguimos la flecha `False` (hacia la derecha).
-            * Este camino lleva a una **hoja final** donde la `class` es **Perro**. ¡Si no hace 'Miau' pero sí tiene pelo, es un Perro!
-
-    **Las "hojas" (las cajas al final de las ramas que no se dividen más) son las respuestas finales.** La `class` que ves en cada hoja te dice qué tipo de mascota predice el árbol.
-
-    **En resumen:** Este árbol usa preguntas sobre el sonido y el pelo para ayudarnos a adivinar qué tipo de mascota es, ¡empezando por el sonido!
-    """)
-
-except Exception as e:
-    st.warning(f"No se pudo generar la imagen del Árbol de Decisión. Asegúrate de tener Graphviz instalado y configurado correctamente. Error: {e}")
-    st.markdown("Puedes aprender más sobre la visualización de árboles de decisión en la documentación de scikit-learn o pydotplus.")
-
-
-st.markdown("""
-Esperamos que este ejemplo te haya ayudado a entender un poco mejor cómo funcionan los Árboles de Decisión. ¡Son como un mapa que te guía hacia la mejor decisión!
-""")

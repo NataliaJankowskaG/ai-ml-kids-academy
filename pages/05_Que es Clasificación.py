@@ -312,7 +312,7 @@ if client:
         * **Selección de Características:** Impacto en el rendimiento del clasificador.
         * **Interpretación de Modelos Clasificadores:** Importancia de características, explicabilidad.
 
-    * **Progreso de Dificultad y Tono (Crucial):** El usuario ha respondido {st.session_state.adivino_correct_streak} preguntas correctas consecutivas.
+    * **Progreso de Dificultad y Tono (Crucial):** El usuario ha respondido {st.session_state.cls_correct_streak} preguntas correctas consecutivas.
         * **Nivel 1 (Iniciador en Clasificación – 0-2 respuestas correctas):** Tono introductorio y conceptual. Preguntas sobre la idea básica de categorizar elementos y ejemplos sencillos de problemas de clasificación.
             * *Tono:* "Estás empezando a organizar el mundo en categorías con el poder del Machine Learning."
         * **Nivel 2 (Analista de Clasificadores – 3-5 respuestas correctas):** Tono más técnico. Introduce conceptos como clases, características, y algoritmos básicos como Regresión Logística o Árboles de Decisión de forma intuitiva. Preguntas sobre la aplicación inicial de estos modelos.

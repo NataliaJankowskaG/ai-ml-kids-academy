@@ -130,3 +130,10 @@ def run_game():
     st.markdown("---")
     st.info("💡 **Concepto aprendido:** Este juego te muestra cómo los sistemas de IA aprenden a **clasificar** objetos. Al darle ejemplos de formas y decir si acierta, ayudas al 'cerebro' a reconocer patrones. ¡Esto es el **reconocimiento de patrones** y la base de muchas cosas que hace la IA!")
     st.markdown("Pulsa los botones de arriba para cambiar de juego.")
+    
+    
+"""
+Es un modelo de conteo/frecuencia extremadamente simplificado que simula un proceso de aprendizaje por 
+acumulación de experiencia y un "sesgo" hacia la categoría más frecuente vista. Es perfecto para el propósito
+ educativo del juego, ya que transmite la idea de cómo los sistemas de IA pueden "aprender" de la interacción
+"""

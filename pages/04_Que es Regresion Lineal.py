@@ -250,7 +250,7 @@ if client:
         * **Regresión Lineal Múltiple:** Añadir más predictores, diferencias con la simple.
         * **Ventajas y Limitaciones:** Simplicidad, interpretabilidad vs. rigidez de supuestos.
 
-    * **Progreso de Dificultad y Tono (Crucial):** El usuario ha respondido {st.session_state.adivino_correct_streak} preguntas correctas consecutivas.
+    * **Progreso de Dificultad y Tono (Crucial):** El usuario ha respondido {st.session_state.reg_correct_streak} preguntas correctas consecutivas.
         * **Nivel 1 (Aprendiz de Estadístico – 0-2 respuestas correctas):** Tono introductorio y conceptual. Preguntas sobre la idea básica de encontrar una línea para predecir un valor y ejemplos simples de relaciones lineales.
             * *Tono:* "Estás trazando tus primeras líneas en el mapa de las predicciones estadísticas."
         * **Nivel 2 (Analista de Regresión – 3-5 respuestas correctas):** Tono más técnico. Introduce la ecuación básica, los conceptos de variable dependiente e independiente, y la interpretación fundamental de los coeficientes.

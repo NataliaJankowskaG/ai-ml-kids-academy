@@ -307,7 +307,7 @@ if client:
         * **Aplicaciones Prácticas:** Segmentación de clientes, compresión de imágenes, detección de anomalías (intuitivo).
         * **Comparación:** Diferencias fundamentales con otros algoritmos de clustering (jerárquico, DBSCAN) a nivel conceptual.
 
-    * **Progreso de Dificultad y Tono (Crucial):** El usuario ha respondido {st.session_state.adivino_correct_streak} preguntas correctas consecutivas.
+    * **Progreso de Dificultad y Tono (Crucial):** El usuario ha respondido {st.session_state.cluster_correct_streak} preguntas correctas consecutivas.
         * **Nivel 1 (Aprendiz de Agrupador – 0-2 respuestas correctas):** Tono introductorio y conceptual. Preguntas sobre la idea básica de agrupar cosas similares y ejemplos cotidianos.
             * *Tono:* "Estás descubriendo el arte de encontrar similitudes y formar grupos."
         * **Nivel 2 (Analista de Segmentación – 3-5 respuestas correctas):** Tono más técnico. Introduce el concepto de centroides, distancia, y el ciclo iterativo de K-Means de forma intuitiva. Preguntas sobre los pasos fundamentales del algoritmo.
