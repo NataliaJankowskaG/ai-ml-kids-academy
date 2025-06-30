@@ -115,7 +115,7 @@ def run_game():
         st.success(f"¡RESULTADO DEL MISTERIO! 🎉")
         st.markdown(f"**El culpable más probable es:** {culpable}")
         st.write(explicacion)
-        # st_lottie(lottie_detective, height=200, key="resultado_lottie") # La Lottie ya se llama dentro de cada condición
+        # st_lottie(lottie_detective, height=200, key="resultado_lottie")
 
         st.markdown("**Has aprendido sobre cómo recolectar datos (pistas) y usarlos para resolver un problema.**")
 

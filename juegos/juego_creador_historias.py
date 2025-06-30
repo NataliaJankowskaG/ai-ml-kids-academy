@@ -5,7 +5,6 @@ import os
 from openai import OpenAI
 from gtts import gTTS
 from io import BytesIO
-# from PIL import Image # No es estrictamente necesario si solo usas st.image con URL
 
 # --- Configuración de la API de OpenAI ---
 try:
@@ -27,7 +26,7 @@ def generate_openai_suggestions(element_type, count=3, current_options=None):
     Eres un asistente creativo de historias para niños. Tu tarea es generar ideas originales y divertidas para {element_type}s.
     Proporciona {count} ideas únicas, separadas por un salto de línea.
     No añadas numeración ni ninguna otra frase, solo las ideas.
-    Asegúrate de que sean adecuadas para niños de 6 a 10 años.
+    Asegúrate de que sean adecuadas para niños de 6 a 12 años.
     """
     if current_options:
         # Pasa las opciones actuales de forma que la IA las entienda como "evitar"
@@ -35,13 +34,13 @@ def generate_openai_suggestions(element_type, count=3, current_options=None):
 
     try:
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"Dame {count} ideas de {element_type}s."}
             ],
             temperature=0.9, # Alta temperatura para ideas creativas
-            max_tokens=100,
+            max_tokens=300,
             top_p=1,
             frequency_penalty=0,
             presence_penalty=0
@@ -70,19 +69,24 @@ def generate_openai_story_segment(base_story_context, character, place, magic_it
     if segment_type == "inicio":
         user_prompt = f"""
         Quiero una historia nueva y {story_genre}.
-        Crea el inicio de una aventura con estos elementos:
+        Crea el **inicio** de una emocionante aventura con estos elementos:
         - Personaje principal: {character}
         - Lugar de la aventura: {place}
         - Objeto mágico: {magic_item}
         Ideas adicionales del niño (si las hay): "{additional_ideas if additional_ideas else 'Ninguna idea adicional.'}"
 
-        Empieza la historia, presenta los elementos y un pequeño problema o misterio.
-        Termina con una pregunta que ofrezca DOS OPCIONES claras para que el niño elija cómo sigue la historia.
-        Formato de las opciones:
-        Opción A: [Breve descripción de la opción A]
-        Opción B: [Breve descripción de la opción B]
+        Empieza la historia, presenta los elementos y un pequeño problema o misterio que NECESITE una decisión.
+        **ES CRÍTICO: Tu respuesta DEBE TERMINAR con una pregunta que ofrezca DOS OPCIONES claras y concisas para que el niño elija cómo sigue la historia.**
+        **El formato EXACTO de las opciones DEBE ser así, sin NADA de texto extra antes o después de estas dos líneas, y SIEMPRE al final de tu respuesta:**
+        Opción A: [Breve descripción de la opción A, sin la pregunta]
+        Opción B: [Breve descripción de la opción B, sin la pregunta]
 
-        La historia debe ser muy atractiva para niños.
+        Ejemplo de cómo DEBE terminar tu respuesta:
+        "...¿Qué debería hacer ahora el valiente [personaje]?
+        Opción A: Investigar el brillo misterioso en el bosque.
+        Opción B: Buscar ayuda en el pueblo cercano."
+
+        La historia debe ser muy atractiva para niños y dejar un claro punto de decisión.
         """
     elif segment_type == "continuacion":
         user_prompt = f"""
@@ -94,9 +98,10 @@ def generate_openai_story_segment(base_story_context, character, place, magic_it
         **Es crucial que escribas un párrafo o dos de la historia antes de presentar las nuevas opciones.**
         Asegúrate de mantener la coherencia con el personaje principal ({character}), el lugar ({place}) y el objeto mágico ({magic_item}).
         La historia debe avanzar y terminar con un nuevo dilema y DOS OPCIONES claras para que el niño decida el siguiente paso.
-        Formato de las opciones:
+        **El formato exacto para las opciones DEBE ser:**
         Opción A: [Breve descripción de la opción A]
         Opción B: [Breve descripción de la opción B]
+        **Asegúrate de que estas dos líneas de opciones estén SIEMPRE al final de tu respuesta, sin texto adicional después de ellas.**
         """
     elif segment_type == "final":
         user_prompt = f"""
@@ -113,17 +118,20 @@ def generate_openai_story_segment(base_story_context, character, place, magic_it
 
     try:
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": system_role},
                 {"role": "user", "content": user_prompt}
             ],
-            temperature=0.8,
-            max_tokens=400,
+            temperature=0.7, # Bajamos un poco la temperatura para que sea más fiel a las instrucciones
+            max_tokens=300,
             top_p=1,
             frequency_penalty=0,
             presence_penalty=0
         )
+        # --- LÍNEA PARA DEPURACIÓN ---
+        # Imprimir la respuesta cruda de la IA en la terminal
+        print(f"Respuesta cruda de la IA ({segment_type}):\n{response.choices[0].message.content}\n---")
         return response.choices[0].message.content
     except Exception as e:
         st.error(f"¡Oh no! Hubo un error al crear la historia mágica: {e}. Asegúrate de que tu clave de API sea válida y tengas créditos.")
@@ -214,10 +222,10 @@ def run_game():
         except ValueError:
             default_index_char = 0 # Si la última opción no está, usa la primera
         selected_character = st.selectbox("1. Personaje:", current_char_options, key="story_char",
-                                        index=default_index_char)
+                                         index=default_index_char)
     with char_col2:
         st.markdown("<br>", unsafe_allow_html=True) # Espacio para alinear
-        if st.button("🧙‍♀️ Sugerir Personaje IA", key="suggest_char_btn"):
+        if st.button("Sugerir Personaje IA", key="suggest_char_btn"):
             if not client:
                 st.error("Por favor, configura tu clave de API de OpenAI en `.streamlit/secrets.toml` para usar las sugerencias.")
             else:
@@ -234,10 +242,10 @@ def run_game():
         except ValueError:
             default_index_place = 0
         selected_place = st.selectbox("2. Lugar:", current_place_options, key="story_place",
-                                    index=default_index_place)
+                                       index=default_index_place)
     with place_col2:
         st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("🔮 Sugerir Lugar IA", key="suggest_place_btn"):
+        if st.button("Sugerir Lugar IA", key="suggest_place_btn"):
             if not client:
                 st.error("Por favor, configura tu clave de API de OpenAI en `.streamlit/secrets.toml` para usar las sugerencias.")
             else:
@@ -254,10 +262,10 @@ def run_game():
         except ValueError:
             default_index_item = 0
         selected_magic_item = st.selectbox("3. Objeto Mágico:", current_item_options, key="story_item",
-                                        index=default_index_item)
+                                          index=default_index_item)
     with item_col2:
         st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("✨ Sugerir Objeto IA", key="suggest_item_btn"):
+        if st.button("Sugerir Objeto IA", key="suggest_item_btn"):
             if not client:
                 st.error("Por favor, configura tu clave de API de OpenAI en `.streamlit/secrets.toml` para usar las sugerencias.")
             else:
@@ -271,10 +279,10 @@ def run_game():
     col_genre, col_reroll = st.columns([0.7, 0.3])
     with col_genre:
         selected_genre = st.selectbox("4. ¿De qué tipo de historia quieres que sea?", generos_historia, key="story_genre",
-                                    index=generos_historia.index(st.session_state.last_genre_choice) if st.session_state.last_genre_choice in generos_historia else 0)
+                                       index=generos_historia.index(st.session_state.last_genre_choice) if st.session_state.last_genre_choice in generos_historia else 0)
     with col_reroll:
         st.markdown("<br>", unsafe_allow_html=True) # Espacio para alinear
-        if st.button("🔄 Volver a Empezar Historia", key="reset_story_btn"):
+        if st.button("Volver a Empezar Historia", key="reset_story_btn"):
             # Reiniciar todo el estado
             st.session_state.story_parts = []
             st.session_state.current_story_full_text = ""
@@ -313,7 +321,7 @@ def run_game():
     st.markdown("---")
 
     # --- Generación inicial de la historia o continuación ---
-    if st.session_state.story_step == "inicio":
+    if not st.session_state.current_story_full_text: # Solo mostramos el botón de inicio si la historia está vacía
         if st.button("✨ ¡Crea el INICIO de mi Historia Mágica! ✨", key="generate_first_part_button"):
             if not client:
                 st.error("Por favor, configura tu clave de API de OpenAI en `.streamlit/secrets.toml` para usar este juego.")
@@ -337,17 +345,23 @@ def run_game():
                         segment_type="inicio"
                     )
                 
-                # --- Eliminadas las líneas de depuración para el segmento inicial ---
-                
-                # Separar la historia de las opciones
-                if "Opción A:" in story_response and "Opción B:" in story_response:
+                # MODIFICACIÓN CLAVE AQUÍ: Aseguramos que 'story_response' es una cadena
+                if isinstance(story_response, str) and "Opción A:" in story_response and "Opción B:" in story_response:
                     parts = story_response.split("Opción A:", 1)
                     story_text_part_temp = parts[0].strip()
                     options_part_temp = "Opción A:" + parts[1].strip()
 
                     # Extraer opciones para los botones
-                    option_a_text_temp = options_part_temp.split("Opción A:", 1)[1].split("Opción B:", 1)[0].strip()
-                    option_b_text_temp = options_part_temp.split("Opción B:", 1)[1].strip()
+                    # Manejo de errores por si las opciones no se parsean bien
+                    try:
+                        option_a_text_temp = options_part_temp.split("Opción A:", 1)[1].split("Opción B:", 1)[0].strip()
+                        option_b_text_temp = options_part_temp.split("Opción B:", 1)[1].strip()
+                    except IndexError:
+                        st.warning("La IA no pudo generar opciones A y B claras. Por favor, reinicia e intenta de nuevo o prueba con diferentes entradas.")
+                        st.session_state.story_step = "error_sin_opciones" # Nuevo estado para manejar esto
+                        st.session_state.current_story_full_text = story_response # Mostrar lo que se generó
+                        st.rerun()
+                        return # Salir de la función para evitar errores posteriores
                     
                     # Actualizar estado de la sesión (aquí es donde se persisten los datos)
                     st.session_state.story_parts = [story_text_part_temp] # Reinicia para la nueva historia
@@ -356,27 +370,26 @@ def run_game():
                     st.session_state.choices_available = [
                         f"Opción A: {option_a_text_temp}",
                         f"Opción B: {option_b_text_temp}",
-                        "Opción C: ¡Inventa tú el siguiente paso!" # Nuestra nueva opción
+                        "Opción C: ¡Inventa tú el siguiente paso!", # Nuestra nueva opción
+                        "¡Quiero terminar la historia aquí!" # Opción para finalizar
                     ]
-                    st.session_state.story_step = "continuacion"
+                    st.session_state.story_step = "continuacion" # <-- Aseguramos este cambio de estado
                 else:
-                    st.write("La historia ha llegado a un punto de finalización.")
-                    st.session_state.story_parts = [story_response] # Reinicia y asume que es el final si no hay opciones
+                    # Si no hay opciones A y B, asumimos que la IA ha llegado a un final "natural" o un error de formato
+                    # Se añade el contenido generado, y se fuerza el estado a "finalizada"
+                    st.write("La historia ha llegado a un punto de finalización (o la IA no pudo generar opciones claras para continuar).")
+                    st.session_state.story_parts = [story_response]
                     st.session_state.current_story_full_text = story_response
-                    st.session_state.story_step = "finalizada"
-                    st.session_state.choices_available = [] # No hay opciones
-                    st.session_state.show_option_c_input = False # Asegurarse de que no se muestre el input de la Opción C
+                    st.session_state.story_step = "finalizada" # Forzar a finalizada si no hay opciones
+                    st.session_state.choices_available = []
+                    st.session_state.show_option_c_input = False
 
-                # --- Eliminadas las líneas de depuración para el segmento inicial ---
-
-                st.session_state.generated_audio = text_to_audio(st.session_state.current_story_full_text) # Audio de todo el segmento
+                st.session_state.generated_audio = text_to_audio(st.session_state.current_story_full_text)
                 st.rerun()
     
     # --- Mostrar historia actual y opciones ---
-    # Esta sección se ejecuta en cada rerun.
-    # Si st.session_state.current_story_full_text tiene contenido, se mostrará.
-    if st.session_state.current_story_full_text: # La condición aquí es mejor con current_story_full_text
-        st.markdown("### 📖 Tu Historia hasta ahora:")
+    if st.session_state.current_story_full_text: 
+        st.markdown("### Tu Historia hasta ahora:")
         st.text_area(
             "Lee aquí tu aventura:",
             value=st.session_state.current_story_full_text,
@@ -389,31 +402,35 @@ def run_game():
 
         st.markdown("---")
 
+        # Siempre mostrar las opciones si el story_step es "continuacion"
         if st.session_state.story_step == "continuacion":
             st.markdown("### ¿Cómo quieres que continúe la historia?")
             
-            # Usar columnas para las opciones A, B y C (Opción C en una columna propia o repartida)
-            choice_col1, choice_col2, choice_col3 = st.columns(3) # Ahora 3 columnas
+            choice_col1, choice_col2, choice_col3, choice_col4 = st.columns(4) 
             
             with choice_col1:
-                if st.button(st.session_state.choices_available[0], key="choice_A_button"):
-                    # Restablecer estado de Opción C si se elige A o B
+                # Asegurarse de que la opción exista en la lista antes de intentar usarla
+                if len(st.session_state.choices_available) > 0 and st.button(st.session_state.choices_available[0], key="choice_A_button"):
                     st.session_state.show_option_c_input = False
                     st.session_state.option_c_text = ""
                     process_choice(st.session_state.choices_available[0], "Opción A")
 
             with choice_col2:
-                if st.button(st.session_state.choices_available[1], key="choice_B_button"):
-                    # Restablecer estado de Opción C si se elige A o B
+                if len(st.session_state.choices_available) > 1 and st.button(st.session_state.choices_available[1], key="choice_B_button"):
                     st.session_state.show_option_c_input = False
                     st.session_state.option_c_text = ""
                     process_choice(st.session_state.choices_available[1], "Opción B")
 
             with choice_col3:
-                # Botón para activar el input de la Opción C
-                if st.button(st.session_state.choices_available[2], key="choice_C_button"):
+                if len(st.session_state.choices_available) > 2 and st.button(st.session_state.choices_available[2], key="choice_C_button"):
                     st.session_state.show_option_c_input = True
-                    st.rerun() # Necesitamos un rerun para que el input de texto aparezca/desaparezca
+                    st.rerun() 
+            
+            with choice_col4:
+                if len(st.session_state.choices_available) > 3 and st.button(st.session_state.choices_available[3], key="end_story_button"):
+                    process_choice("El niño ha decidido terminar la historia aquí.", "final")
+                    st.rerun() 
+
 
             # Mostrar el input de texto para la Opción C si el botón fue presionado
             if st.session_state.show_option_c_input:
@@ -424,9 +441,8 @@ def run_game():
                     value=st.session_state.option_c_text,
                     key="option_c_text_input"
                 )
-                if st.button("🚀 Continuar con mi idea", key="process_option_c_button"):
+                if st.button("Continuar con mi idea", key="process_option_c_button"):
                     if st.session_state.option_c_text.strip():
-                        # Procesar la idea del usuario como la elección
                         process_choice(st.session_state.option_c_text, "Opción C")
                     else:
                         st.warning("Por favor, escribe tu idea antes de continuar.")
@@ -436,11 +452,10 @@ def run_game():
             st.balloons()
             
             # Generar la imagen al final de la historia
-            if st.session_state.generated_image_url is None: # Solo generar si no se ha generado ya
+            if st.session_state.generated_image_url is None: 
                 if client:
                     st.toast("La IA está creando una imagen de tu historia...", icon="🖼️")
                     with st.spinner("Generando imagen..."):
-                        # Crear un prompt más conciso para la imagen
                         image_prompt = (
                             f"Una ilustración colorida y caprichosa para niños, estilo libro de cuentos, "
                             f"con {st.session_state.last_character_choice} en {st.session_state.last_place_choice}, "
@@ -450,26 +465,28 @@ def run_game():
                         
                         try:
                             image_results = client.images.generate(
-                                model="dall-e-3", # o "dall-e-2" si prefieres y tienes acceso
+                                model="dall-e-3",
                                 prompt=image_prompt,
                                 n=1,
-                                size="512x512" # Puedes ajustar el tamaño: "256x256", "512x512", "1024x1024"
+                                size="1024x1024"
                             )
                             st.session_state.generated_image_url = image_results.data[0].url
                             st.toast("¡Imagen de la historia creada!", icon="✅")
-                            st.rerun() # Volver a ejecutar para mostrar la imagen inmediatamente
+                            st.rerun() 
                         except Exception as e:
                             st.error(f"Error al generar la imagen: {e}. Asegúrate de que tu clave de API sea válida y tengas créditos para DALL-E.")
                             st.session_state.generated_image_url = None
                             st.toast("No se pudo crear la imagen.", icon="❌")
                 
-                if st.session_state.generated_image_url:
-                    st.markdown("### 🖼️ ¡Mira la imagen de tu historia!")
-                    st.image(st.session_state.generated_image_url, caption="Imagen generada por IA", use_column_width=True)
-                else:
-                    st.write("No se pudo generar una imagen para esta historia.")
+            if st.session_state.generated_image_url:
+                st.markdown("### ¡Mira la imagen de tu historia!")
+                st.image(st.session_state.generated_image_url, caption="Imagen generada por IA", use_container_width=True)
+            else:
+                st.write("No se pudo generar una imagen para esta historia.")
 
-            st.write("Puedes presionar '🔄 Volver a Empezar Historia' para crear una nueva aventura.")
+            st.write("Puedes presionar 'Volver a Empezar Historia' para crear una nueva aventura.")
+        elif st.session_state.story_step == "error_sin_opciones":
+            st.error("Lo siento, la IA no pudo generar opciones claras para continuar la historia. Por favor, pulsa 'Volver a Empezar Historia' e intenta de nuevo con otras elecciones.")
 
 
     st.markdown("---")
@@ -486,20 +503,29 @@ def process_choice(selected_choice_text, choice_type):
 
     st.write(f"La IA está creando la siguiente parte...")
     with st.spinner("Continuando tu aventura..."):
-        next_part_raw = generate_openai_story_segment(
-            st.session_state.current_story_full_text,
-            st.session_state.last_character_choice,
-            st.session_state.last_place_choice,
-            st.session_state.last_item_choice,
-            selected_choice_text, # La elección del niño es ahora una "idea adicional" para la IA
-            st.session_state.last_genre_choice,
-            segment_type="continuacion"
-        )
+        if choice_type == "final": # Si la elección es finalizar, se envía como segmento final
+            next_part_raw = generate_openai_story_segment(
+                st.session_state.current_story_full_text,
+                st.session_state.last_character_choice,
+                st.session_state.last_place_choice,
+                st.session_state.last_item_choice,
+                selected_choice_text,
+                st.session_state.last_genre_choice,
+                segment_type="final" # Marcamos como segmento final
+            )
+        else: # Si no es un final, es una continuación
+            next_part_raw = generate_openai_story_segment(
+                st.session_state.current_story_full_text,
+                st.session_state.last_character_choice,
+                st.session_state.last_place_choice,
+                st.session_state.last_item_choice,
+                selected_choice_text, # La elección del niño es ahora una "idea adicional" para la IA
+                st.session_state.last_genre_choice,
+                segment_type="continuacion"
+            )
         
-    # --- Eliminadas las líneas de depuración para cualquier opción ---
-    
     # Procesar la respuesta para separar historia de opciones (si las hay)
-    if "Opción A:" in next_part_raw and "Opción B:" in next_part_raw:
+    if isinstance(next_part_raw, str) and "Opción A:" in next_part_raw and "Opción B:" in next_part_raw and choice_type != "final": # Solo buscamos opciones si no es un final
         parts = next_part_raw.split("Opción A:", 1)
         story_text_part = parts[0].strip()
         options_part = "Opción A:" + parts[1].strip()
@@ -508,16 +534,30 @@ def process_choice(selected_choice_text, choice_type):
         st.session_state.story_parts.append(story_text_part)
         st.session_state.current_story_full_text += "\n\n" + story_text_part
 
-        option_a_text = options_part.split("Opción A:", 1)[1].split("Opción B:", 1)[0].strip()
-        option_b_text = options_part.split("Opción B:", 1)[1].strip()
-        # Añadir Opción C al final de la lista de opciones
+        # Manejo de errores por si las opciones no se parsean bien
+        try:
+            option_a_text = options_part.split("Opción A:", 1)[1].split("Opción B:", 1)[0].strip()
+            option_b_text = options_part.split("Opción B:", 1)[1].strip()
+        except IndexError:
+            st.warning("La IA no pudo generar opciones A y B claras para la continuación. Se finalizará la historia.")
+            st.session_state.story_parts.append(next_part_raw)
+            st.session_state.current_story_full_text += "\n\n" + next_part_raw
+            st.session_state.story_step = "finalizada"
+            st.session_state.choices_available = []
+            st.session_state.show_option_c_input = False
+            st.session_state.generated_audio = text_to_audio(next_part_raw)
+            st.rerun()
+            return
+
+        # Añadir Opción C y la opción para finalizar
         st.session_state.choices_available = [
             f"Opción A: {option_a_text}",
             f"Opción B: {option_b_text}",
-            "Opción C: ¡Inventa tú el siguiente paso!"
+            "Opción C: ¡Inventa tú el siguiente paso!",
+            "¡Quiero terminar la historia aquí!"
         ]
         st.session_state.story_step = "continuacion" # Seguimos en continuación
-    else: # Es el final si la IA no da más opciones
+    else: # Es el final si la IA no da más opciones o si se eligió finalizar
         st.write("La historia ha llegado a un punto de finalización.")
         st.session_state.story_parts.append(next_part_raw)
         st.session_state.current_story_full_text += "\n\n" + next_part_raw
@@ -527,8 +567,6 @@ def process_choice(selected_choice_text, choice_type):
 
     st.session_state.generated_audio = text_to_audio(next_part_raw) # Genera audio para el NUEVO segmento
     
-    # --- Eliminadas las líneas de depuración para cualquier opción ---
-
     st.rerun() # Siempre hacer rerun después de procesar una elección
 
 
